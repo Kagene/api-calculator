@@ -35,7 +35,7 @@ jobs:
         echo "Updating version in code..."
         VERSION="${{ github.run_number }}.${{ github.run_id }}"
         echo "__version__ = '${VERSION}'" > version.py
-        echo "::set-output name=VERSION::${VERSION}"
+        echo "VERSION=${VERSION}" >> $GITHUB_ENV
       shell: bash
 
     - name: Commit version change
@@ -56,16 +56,15 @@ jobs:
       uses: returntocorp/semgrep-action@v1
       with:
         config: p/python
-        args: --exclude='venv/*'
 
     - name: Build Docker image
       run: |
-        docker build -t kagene/api-calculator:${{ steps.get_version.outputs.VERSION }} .
+        docker build -t kagene/api-calculator:${{ env.VERSION }} .
 
     - name: Run Trivy scan
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: kagene/api-calculator:${{ steps.get_version.outputs.VERSION }}
+        image-ref: kagene/api-calculator:${{ env.VERSION }}
         format: 'table'
         severity: 'CRITICAL,HIGH'
 
@@ -79,6 +78,6 @@ jobs:
     - name: Push Docker image
       if: success()
       run: |
-        docker push kagene/api-calculator:${{ steps.get_version.outputs.VERSION }}
-        docker tag kagene/api-calculator:${{ steps.get_version.outputs.VERSION }} kagene/api-calculator:latest
+        docker push kagene/api-calculator:${{ env.VERSION }}
+        docker tag kagene/api-calculator:${{ env.VERSION }} kagene/api-calculator:latest
         docker push kagene/api-calculator:latest
