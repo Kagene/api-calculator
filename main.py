@@ -1,10 +1,11 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from version import __version__
 
 app = FastAPI(
     title="API Калькулятор",
     description="Простой API для выполнения арифметических операций.",
-    version="1.0.0"
+    version=__version__
 )
 
 class Calculation(BaseModel):

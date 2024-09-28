@@ -3,6 +3,8 @@ name: CI/CD Pipeline
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - 'version.py'
 
 jobs:
   build:
@@ -11,6 +13,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -22,6 +26,24 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
+    - name: Update version in code
+      run: |
+        echo "Updating version in code..."
+        VERSION=$(echo "${{ github.run_number }}.${{ github.run_id }}")
+        echo "__version__ = '${VERSION}'" > version.py
+      shell: bash
+
+    - name: Commit version change
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        git add version.py
+        git commit -m "Update version to ${VERSION}"
+        git push origin main
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      shell: bash
+
     - name: Run tests
       run: |
         echo "No tests available."
@@ -30,15 +52,16 @@ jobs:
       uses: returntocorp/semgrep-action@v1
       with:
         config: p/python
+        args: --exclude='venv/*'
 
     - name: Build Docker image
       run: |
-        docker build -t kagene/api-calculator:${{ github.sha }} .
+        docker build -t kagene/api-calculator:${{ steps.get_version.outputs.VERSION }} .
 
     - name: Run Trivy scan
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: kagene/api-calculator:${{ github.sha }}
+        image-ref: kagene/api-calculator:${{ steps.get_version.outputs.VERSION }}
         format: 'table'
         severity: 'CRITICAL,HIGH'
 
@@ -52,4 +75,6 @@ jobs:
     - name: Push Docker image
       if: success()
       run: |
-        docker push kagene/api-calculator:${{ github.sha }}
+        docker push kagene/api-calculator:${{ steps.get_version.outputs.VERSION }}
+        docker tag kagene/api-calculator:${{ steps.get_version.outputs.VERSION }} kagene/api-calculator:latest
+        docker push kagene/api-calculator:latest
